@@ -17,18 +17,8 @@ export function Header() {
 	const closeMenu = () => setIsMenuOpen(false);
 
 	const links = [
-		{
-			label: "Contributors",
-			href: "/contributors",
-		},
-		{
-			label: "Sponsors",
-			href: "/sponsors",
-		},
-		{
-			label: "Blog",
-			href: "/blog",
-		},
+		{ label: "Privacy", href: "/privacy" },
+		{ label: "Terms", href: "/terms" },
 	];
 
 	return (
