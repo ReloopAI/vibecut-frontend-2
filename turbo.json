@@ -39,6 +39,15 @@
     },
     "format": {
       "dependsOn": ["^format"]
+    },
+    "test": {
+      "dependsOn": ["^test"],
+      "cache": false
+    },
+    "test:coverage": {
+      "dependsOn": ["^test:coverage"],
+      "outputs": ["coverage/**"],
+      "cache": false
     }
   }
 }

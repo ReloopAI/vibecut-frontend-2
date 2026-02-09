@@ -6,3 +6,5 @@
 !.env.example
 
 .next/
+coverage/
+storybook-static/

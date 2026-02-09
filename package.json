@@ -8,13 +8,17 @@
   "scripts": {
     "dev:web": "turbo run dev --filter=@opencut/web",
     "build:web": "turbo run build --filter=@opencut/web",
+    "dev:storybook": "bun run --cwd apps/web storybook",
+    "build:storybook": "bun run --cwd apps/web build:storybook",
     "dev:tools": "turbo run dev --filter=@opencut/tools",
     "build:tools": "turbo run build --filter=@opencut/tools",
     "start:tools": "turbo run start --filter=@opencut/tools",
     "lint:web": "biome lint apps/web/src --max-diagnostics=1000",
     "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
     "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
-    "test": "bun test"
+    "test": "bun test",
+    "test:web": "turbo run test --filter=@opencut/web",
+    "test:web:coverage": "turbo run test:coverage --filter=@opencut/web"
   },
   "dependencies": {
     "@types/react": "^19.2.10",
