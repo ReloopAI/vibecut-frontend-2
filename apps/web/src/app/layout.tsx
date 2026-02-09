@@ -7,6 +7,8 @@ import { baseMetaData } from "./metadata";
 import { BotIdClient } from "botid/client";
 import { webEnv } from "@opencut/env/web";
 import { Inter } from "next/font/google";
+import { AuthProvider } from "@/components/providers/auth-provider";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 const siteFont = Inter({ subsets: ["latin"] });
 
@@ -35,22 +37,24 @@ export default function RootLayout({
 					defaultTheme="system"
 					disableTransitionOnChange={true}
 				>
-					<TooltipProvider>
-						<Toaster />
-						<Script
-							src="https://cdn.databuddy.cc/databuddy.js"
-							strategy="afterInteractive"
-							async
-							data-client-id="UP-Wcoy5arxFeK7oyjMMZ"
-							data-disabled={webEnv.NODE_ENV === "development"}
-							data-track-attributes={false}
-							data-track-errors={true}
-							data-track-outgoing-links={false}
-							data-track-web-vitals={false}
-							data-track-sessions={false}
-						/>
-						{children}
-					</TooltipProvider>
+					<AuthProvider>
+						<TooltipProvider>
+							<Toaster />
+							<Script
+								src="https://cdn.databuddy.cc/databuddy.js"
+								strategy="afterInteractive"
+								async
+								data-client-id="UP-Wcoy5arxFeK7oyjMMZ"
+								data-disabled={webEnv.NODE_ENV === "development"}
+								data-track-attributes={false}
+								data-track-errors={true}
+								data-track-outgoing-links={false}
+								data-track-web-vitals={false}
+								data-track-sessions={false}
+							/>
+							<AuthGuard>{children}</AuthGuard>
+						</TooltipProvider>
+					</AuthProvider>
 				</ThemeProvider>
 			</body>
 		</html>

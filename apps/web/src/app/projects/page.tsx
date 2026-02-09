@@ -46,6 +46,9 @@ import {
 } from "@hugeicons/core-free-icons";
 import { OcVideoIcon } from "@opencut/ui/icons";
 import { Label } from "@/components/ui/label";
+import { useAuthStore } from "@/stores/auth-store";
+import { backendAuthApi } from "@/lib/auth/api-client";
+import { authSession } from "@/lib/auth/session";
 import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
@@ -124,6 +127,34 @@ export default function ProjectsPage() {
 
 function ProjectsHeader() {
 	const { viewMode, isHydrated, setViewMode } = useProjectsStore();
+	const authStatus = useAuthStore((state) => state.status);
+	const logout = useAuthStore((state) => state.logout);
+	const [currentWorkspaceName, setCurrentWorkspaceName] = useState("Workspace");
+
+	useEffect(() => {
+		if (authStatus !== "authenticated") {
+			setCurrentWorkspaceName("Workspace");
+			return;
+		}
+
+		const token = authSession.getToken();
+		if (!token) {
+			return;
+		}
+
+		backendAuthApi
+			.getWorkspaces({ token })
+			.then((workspaces) => {
+				if (workspaces.length > 0) {
+					setCurrentWorkspaceName(workspaces[0].name);
+				} else {
+					setCurrentWorkspaceName("No workspace");
+				}
+			})
+			.catch(() => {
+				setCurrentWorkspaceName("Workspace");
+			});
+	}, [authStatus]);
 
 	return (
 		<header className="sticky top-0 z-20 px-8 bg-background flex flex-col gap-2">
@@ -133,8 +164,8 @@ function ProjectsHeader() {
 						<BreadcrumbList>
 							<BreadcrumbItem>
 								<BreadcrumbLink asChild>
-									<Link href="/" className="text-sm sm:text-base">
-										Home
+									<Link href="/workspaces" className="text-sm sm:text-base">
+										{currentWorkspaceName}
 									</Link>
 								</BreadcrumbLink>
 							</BreadcrumbItem>
@@ -180,6 +211,22 @@ function ProjectsHeader() {
 
 				<div className="flex items-center gap-3 md:gap-4">
 					<SearchBar className="hidden md:block" />
+					{authStatus === "authenticated" ? (
+						<>
+							<Button
+								variant="text"
+								onClick={() => {
+									logout();
+								}}
+							>
+								Logout
+							</Button>
+						</>
+					) : (
+						<Link href="/auth/login">
+							<Button variant="outline">Login</Button>
+						</Link>
+					)}
 					<NewProjectButton />
 				</div>
 			</div>
