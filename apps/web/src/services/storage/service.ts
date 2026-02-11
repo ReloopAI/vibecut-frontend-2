@@ -228,6 +228,9 @@ class StorageService {
 			duration: mediaAsset.duration,
 			thumbnailUrl: mediaAsset.thumbnailUrl,
 			ephemeral: mediaAsset.ephemeral,
+			cloudFileId: mediaAsset.cloudFileId,
+			cloudFileKey: mediaAsset.cloudFileKey,
+			cloudSyncedAt: mediaAsset.cloudSyncedAt,
 		};
 
 		await mediaMetadataAdapter.set(mediaAsset.id, metadata);
@@ -278,6 +281,9 @@ class StorageService {
 			duration: metadata.duration,
 			thumbnailUrl: metadata.thumbnailUrl,
 			ephemeral: metadata.ephemeral,
+			cloudFileId: metadata.cloudFileId,
+			cloudFileKey: metadata.cloudFileKey,
+			cloudSyncedAt: metadata.cloudSyncedAt,
 		};
 	}
 

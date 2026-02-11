@@ -36,6 +36,40 @@ export interface PutEditorProjectResponse {
 	updatedAt: ISODateString;
 }
 
+export interface CreateFileUploadRequest {
+	fileName: string;
+	contentType: string;
+	size?: number;
+}
+
+export interface FileAsset {
+	id: UUID;
+	workspaceId: string;
+	ownerId: number;
+	key: string;
+	bucket: string;
+	region: string;
+	fileName: string;
+	contentType: string;
+	size: number;
+	createdAt: ISODateString;
+	updatedAt?: ISODateString;
+	deletedAt: ISODateString | null;
+}
+
+export interface CreateFileUploadResponse extends FileAsset {
+	uploadUrl: string;
+}
+
+export interface ListFilesResponse {
+	items: FileAsset[];
+	total: number;
+}
+
+export interface SignedFileResponse {
+	url: string;
+}
+
 export interface EditorProjectListItem {
 	id: UUID;
 	workspaceId: string;
@@ -99,7 +133,7 @@ const requestWithAuthRetry = async <T>({
 	body,
 }: {
 	path: string;
-	method: "GET" | "PUT";
+	method: "GET" | "PUT" | "POST";
 	token: string;
 	body?: unknown;
 }): Promise<T> => {
@@ -243,4 +277,81 @@ export const editorCloudApi = {
 			token,
 			body: payload,
 		}),
+	createFileUpload: ({
+		token,
+		payload,
+	}: {
+		token: string;
+		payload: CreateFileUploadRequest;
+	}) =>
+		requestWithAuthRetry<CreateFileUploadResponse>({
+			path: "/files/upload",
+			method: "POST",
+			token,
+			body: payload,
+		}),
+	uploadFileToPresignedUrl: async ({
+		uploadUrl,
+		file,
+		contentType,
+	}: {
+		uploadUrl: string;
+		file: File;
+		contentType: string;
+	}): Promise<void> => {
+		const response = await fetch(uploadUrl, {
+			method: "PUT",
+			headers: {
+				"Content-Type": contentType,
+			},
+			body: file,
+		});
+
+		if (!response.ok) {
+			throw new EditorSyncError({
+				message: `File upload failed (${response.status})`,
+				statusCode: response.status,
+			});
+		}
+	},
+	listFiles: ({
+		token,
+		limit = 100,
+		search,
+	}: {
+		token: string;
+		limit?: number;
+		search?: string;
+	}) => {
+		const params = new URLSearchParams({
+			limit: String(limit),
+		});
+		if (search) {
+			params.set("search", search);
+		}
+		return requestWithAuthRetry<ListFilesResponse>({
+			path: `/files?${params.toString()}`,
+			method: "GET",
+			token,
+		});
+	},
+	signFileByKey: ({
+		token,
+		key,
+		redirect = false,
+	}: {
+		token: string;
+		key: string;
+		redirect?: boolean;
+	}) => {
+		const params = new URLSearchParams({
+			key,
+			redirect: String(redirect),
+		});
+		return requestWithAuthRetry<SignedFileResponse>({
+			path: `/files/sign?${params.toString()}`,
+			method: "GET",
+			token,
+		});
+	},
 };

@@ -66,6 +66,45 @@ export const extractAssetFileIds = ({ project }: { project: TProject }): string[
 	return Array.from(ids);
 };
 
+export const extractCloudAssetFileIds = ({
+	mediaAssets,
+	includeEphemeral = false,
+}: {
+	mediaAssets: Array<{ id: string; cloudFileId?: string }>;
+	includeEphemeral?: boolean;
+}): string[] => {
+	const fileIds = new Set<string>();
+
+	for (const asset of mediaAssets) {
+		if (!asset.cloudFileId) continue;
+		if (!includeEphemeral && "ephemeral" in asset && asset.ephemeral) continue;
+		fileIds.add(asset.cloudFileId);
+	}
+
+	return Array.from(fileIds);
+};
+
+export const extractCloudAssetFileIdsForTimeline = ({
+	project,
+	mediaAssets,
+}: {
+	project: TProject;
+	mediaAssets: Array<{ id: string; cloudFileId?: string }>;
+}): string[] => {
+	const referencedMediaIds = extractAssetFileIds({ project });
+	const mediaById = new Map(mediaAssets.map((asset) => [asset.id, asset]));
+	const fileIds = new Set<string>();
+
+	for (const mediaId of referencedMediaIds) {
+		const asset = mediaById.get(mediaId);
+		if (asset?.cloudFileId) {
+			fileIds.add(asset.cloudFileId);
+		}
+	}
+
+	return Array.from(fileIds);
+};
+
 export const buildLocalProjectFromCloudState = ({
 	projectId,
 	version,

@@ -26,6 +26,9 @@ export interface MediaAssetData {
 	fps?: number;
 	ephemeral?: boolean;
 	thumbnailUrl?: string;
+	cloudFileId?: string;
+	cloudFileKey?: string;
+	cloudSyncedAt?: string;
 }
 
 export type SerializedScene = Omit<TScene, "createdAt" | "updatedAt"> & {

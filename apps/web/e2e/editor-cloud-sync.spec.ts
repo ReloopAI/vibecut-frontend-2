@@ -48,6 +48,8 @@ const CLOUD_PROJECT_RESPONSE = {
 	},
 };
 
+const CLOUD_UPLOAD_URL = "https://presigned-upload.example.com/upload";
+
 async function mockAuthAndCloudEditorApis({
 	page,
 	withPutRoute = false,
@@ -109,6 +111,55 @@ async function mockAuthAndCloudEditorApis({
 
 		await route.fulfill({ status: 405 });
 	});
+
+	await page.route("**/api/files/upload", async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				id: "file-1",
+				workspaceId: "ws-1",
+				ownerId: 1,
+				key: `workspaces/ws-1/files/${PROJECT_ID}__media-1__test.png`,
+				bucket: "bucket",
+				region: "us-east-1",
+				fileName: `${PROJECT_ID}__media-1__test.png`,
+				contentType: "image/png",
+				size: 100,
+				createdAt: "2026-02-11T00:00:00.000Z",
+				deletedAt: null,
+				uploadUrl: CLOUD_UPLOAD_URL,
+			}),
+		});
+	});
+
+	await page.route("**/api/files?**", async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				items: [],
+				total: 0,
+			}),
+		});
+	});
+
+	await page.route("**/api/files/sign?**", async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				url: "https://download.example.com/file.png",
+			}),
+		});
+	});
+
+	await page.route("https://presigned-upload.example.com/**", async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			body: "",
+		});
+	});
 }
 
 test.beforeEach(async ({ context, page }) => {
@@ -139,7 +190,57 @@ test("editor loads project from cloud when local project is missing", async ({
 	await expect(page.getByText("Cloud Synced Project")).toBeVisible();
 });
 
-test("adding media to timeline triggers cloud sync PUT", async ({ page }) => {
+test("editor restores cloud assets even when not used on timeline", async ({
+	page,
+}) => {
+	await mockAuthAndCloudEditorApis({ page });
+
+	await page.route("**/api/files?**", async (route: Route) => {
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			body: JSON.stringify({
+				items: [
+					{
+						id: "file-asset-1",
+						workspaceId: "ws-1",
+						ownerId: 1,
+						key: `workspaces/ws-1/files/${PROJECT_ID}__media-asset-1__asset-only.png`,
+						bucket: "bucket",
+						region: "ap-southeast-1",
+						fileName: `${PROJECT_ID}__media-asset-1__asset-only.png`,
+						contentType: "image/png",
+						size: 95,
+						createdAt: "2026-02-11T00:00:00.000Z",
+						deletedAt: null,
+					},
+				],
+				total: 1,
+			}),
+		});
+	});
+
+	await page.route("https://download.example.com/file.png", async (route: Route) => {
+		const pngBuffer = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9WlqvNQAAAAASUVORK5CYII=",
+			"base64",
+		);
+		await route.fulfill({
+			status: 200,
+			contentType: "image/png",
+			body: pngBuffer,
+		});
+	});
+
+	await page.goto(`/editor/${PROJECT_ID}`);
+
+	await expect(page.getByText("Cloud Synced Project")).toBeVisible();
+	await expect(
+		page.locator("div", { hasText: "asset-only.png" }).first(),
+	).toBeVisible();
+});
+
+test("adding media to assets triggers cloud sync PUT", async ({ page }) => {
 	await mockAuthAndCloudEditorApis({ page, withPutRoute: true });
 
 	const putRequestPromise = page.waitForRequest(
@@ -164,11 +265,11 @@ test("adding media to timeline triggers cloud sync PUT", async ({ page }) => {
 
 	const uploadedMediaCard = page.locator("div", { hasText: "test.png" }).first();
 	await expect(uploadedMediaCard).toBeVisible();
-	await uploadedMediaCard.hover();
-	await uploadedMediaCard.locator("button").first().click({ force: true });
 
 	const putRequest = await putRequestPromise;
 	const putPayload = putRequest.postDataJSON() as Record<string, unknown>;
 	expect(putPayload).toHaveProperty("state");
 	expect(putPayload).toHaveProperty("assetFileIds");
+	expect(Array.isArray(putPayload.assetFileIds)).toBe(true);
+	expect(putPayload.assetFileIds).toContain("file-1");
 });

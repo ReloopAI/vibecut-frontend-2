@@ -32,12 +32,15 @@ import {
 	EditorSyncError,
 	editorCloudApi,
 	EditorVersionConflictError,
+	type FileAsset,
 } from "@/lib/cloud-sync/editor-api";
 import {
 	buildEditorProjectState,
 	buildLocalProjectFromCloudState,
+	extractCloudAssetFileIds,
 	extractAssetFileIds,
 } from "@/lib/cloud-sync/editor-mapper";
+import type { MediaAsset } from "@/types/assets";
 
 export interface MigrationState {
 	isMigrating: boolean;
@@ -206,6 +209,11 @@ export class ProjectManager {
 					currentSceneId: project.currentSceneId,
 				});
 			}
+
+			await this.syncMissingLocalMediaFromCloud({
+				project,
+				token: authSession.getToken(),
+			});
 
 			await this.editor.media.loadProjectMedia({ projectId: id });
 			void this.initializeRemoteVersionFromCloud({ projectId: id });
@@ -744,6 +752,8 @@ export class ProjectManager {
 		const baseVersion = this.remoteVersionByProjectId.get(projectId) ?? 0;
 
 		try {
+			const mediaAssets = this.editor.media.getAssets();
+
 			const response = await editorCloudApi.putProject({
 				projectId,
 				token,
@@ -751,7 +761,7 @@ export class ProjectManager {
 					name: project.metadata.name,
 					baseVersion,
 					state: buildEditorProjectState({ project }),
-					assetFileIds: extractAssetFileIds({ project }),
+					assetFileIds: extractCloudAssetFileIds({ mediaAssets }),
 					clientRequestId: `${projectId}:${project.metadata.updatedAt.toISOString()}`,
 				},
 			});
@@ -799,5 +809,112 @@ export class ProjectManager {
 				this.remoteVersionByProjectId.set(projectId, 0);
 			}
 		}
+	}
+
+	private async syncMissingLocalMediaFromCloud({
+		project,
+		token,
+	}: {
+		project: TProject;
+		token: string | null;
+	}): Promise<void> {
+		if (!token) return;
+
+		const existingLocalMedia = await storageService.loadAllMediaAssets({
+			projectId: project.metadata.id,
+		});
+		const existingMediaIds = new Set(existingLocalMedia.map((asset) => asset.id));
+
+		const remoteFiles = await editorCloudApi.listFiles({
+			token,
+			limit: 100,
+			search: project.metadata.id,
+		});
+		const remoteFileByMediaId = new Map<string, FileAsset>();
+
+		for (const remoteFile of remoteFiles.items) {
+			const parsed = this.parseCloudFileName({
+				fileName: remoteFile.fileName,
+			});
+			if (!parsed) continue;
+			if (parsed.projectId !== project.metadata.id) continue;
+			remoteFileByMediaId.set(parsed.mediaId, remoteFile);
+		}
+
+		for (const [mediaId, remoteFile] of remoteFileByMediaId) {
+			if (existingMediaIds.has(mediaId)) continue;
+
+			if (!remoteFile) continue;
+
+			try {
+				const signed = await editorCloudApi.signFileByKey({
+					token,
+					key: remoteFile.key,
+				});
+				const blobResponse = await fetch(signed.url);
+				if (!blobResponse.ok) continue;
+				const blob = await blobResponse.blob();
+				const file = new File([blob], remoteFile.fileName, {
+					type: remoteFile.contentType || blob.type,
+					lastModified: Date.now(),
+				});
+				const fileNameParts = this.parseCloudFileName({
+					fileName: remoteFile.fileName,
+				});
+
+				await storageService.saveMediaAsset({
+					projectId: project.metadata.id,
+					mediaAsset: {
+						id: mediaId,
+						name: fileNameParts?.originalFileName ?? remoteFile.fileName,
+						type: this.getMediaTypeFromContentType({
+							contentType: remoteFile.contentType,
+						}),
+						file,
+						cloudFileId: remoteFile.id,
+						cloudFileKey: remoteFile.key,
+						cloudSyncedAt: new Date().toISOString(),
+					},
+				});
+			} catch (error) {
+				console.warn("Failed to hydrate remote media file", error);
+			}
+		}
+	}
+
+	private parseCloudFileName({
+		fileName,
+	}: {
+		fileName: string;
+	}):
+		| {
+				projectId: string;
+				mediaId: string;
+				originalFileName: string;
+		  }
+		| null {
+		const firstSeparator = fileName.indexOf("__");
+		if (firstSeparator <= 0) return null;
+
+		const secondSeparator = fileName.indexOf("__", firstSeparator + 2);
+		if (secondSeparator <= firstSeparator + 2) return null;
+
+		const projectId = fileName.slice(0, firstSeparator);
+		const mediaId = fileName.slice(firstSeparator + 2, secondSeparator);
+		const originalFileName = fileName.slice(secondSeparator + 2);
+		if (!projectId || !mediaId || !originalFileName) return null;
+
+		return { projectId, mediaId, originalFileName };
+	}
+
+	private getMediaTypeFromContentType({
+		contentType,
+	}: {
+		contentType: string;
+	}): MediaAsset["type"] {
+		if (contentType.startsWith("image/")) return "image";
+		if (contentType.startsWith("video/")) return "video";
+		if (contentType.startsWith("audio/")) return "audio";
+		return "video";
 	}
 }
