@@ -6,7 +6,7 @@ export const getBackendApiBaseUrl = () => {
 	);
 };
 
-const WORKSPACE_STORAGE_KEY = "opencut_workspace_id";
+const WORKSPACE_STORAGE_KEY = "vibecut_workspace_id";
 
 export const getSelectedWorkspaceId = (): string | null => {
 	if (typeof window === "undefined") return null;

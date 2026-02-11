@@ -176,7 +176,7 @@ test.beforeEach(async ({ context, page }) => {
 	]);
 
 	await page.addInitScript(() => {
-		window.localStorage.setItem("opencut_workspace_id", "ws-1");
+		window.localStorage.setItem("vibecut_workspace_id", "ws-1");
 	});
 });
 

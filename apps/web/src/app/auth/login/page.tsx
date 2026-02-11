@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,14 @@ import { Label } from "@/components/ui/label";
 import { useAuthStore } from "@/stores/auth-store";
 
 export default function LoginPage() {
+	return (
+		<Suspense fallback={null}>
+			<LoginContent />
+		</Suspense>
+	);
+}
+
+function LoginContent() {
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const nextPath = searchParams.get("next") || "/projects";

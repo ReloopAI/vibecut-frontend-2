@@ -1,24 +1,24 @@
 {
-  "name": "opencut",
+  "name": "vibecut",
   "packageManager": "bun@1.2.18",
   "workspaces": [
     "apps/*",
     "packages/*"
   ],
   "scripts": {
-    "dev:web": "turbo run dev --filter=@opencut/web",
-    "build:web": "turbo run build --filter=@opencut/web",
+    "dev:web": "turbo run dev --filter=@vibecut/web",
+    "build:web": "turbo run build --filter=@vibecut/web",
     "dev:storybook": "bun run --cwd apps/web storybook",
     "build:storybook": "bun run --cwd apps/web build:storybook",
-    "dev:tools": "turbo run dev --filter=@opencut/tools",
-    "build:tools": "turbo run build --filter=@opencut/tools",
-    "start:tools": "turbo run start --filter=@opencut/tools",
+    "dev:tools": "turbo run dev --filter=@vibecut/tools",
+    "build:tools": "turbo run build --filter=@vibecut/tools",
+    "start:tools": "turbo run start --filter=@vibecut/tools",
     "lint:web": "biome lint apps/web/src --max-diagnostics=1000",
     "lint:web:fix": "biome lint apps/web/src --write --max-diagnostics=1000",
     "format:web": "biome format apps/web/src/services/renderer --write --max-diagnostics=1000",
     "test": "bun test",
-    "test:web": "turbo run test --filter=@opencut/web",
-    "test:web:coverage": "turbo run test:coverage --filter=@opencut/web",
+    "test:web": "turbo run test --filter=@vibecut/web",
+    "test:web:coverage": "turbo run test:coverage --filter=@vibecut/web",
     "test:e2e:web": "bun run --cwd apps/web test:e2e",
     "test:e2e:web:ui": "bun run --cwd apps/web test:e2e:ui"
   },
