@@ -307,8 +307,33 @@ export class ProjectManager {
 		if (uniqueIds.length === 0) return;
 
 		try {
+			const token = authSession.getToken();
+			const deletedProjectIds =
+				token === null
+					? uniqueIds
+					: (
+							await Promise.all(
+								uniqueIds.map(async (id) => {
+									try {
+										await editorCloudApi.deleteProject({ projectId: id, token });
+										return id;
+									} catch (error) {
+										console.error(`Failed to delete cloud project ${id}:`, error);
+										return null;
+									}
+								}),
+							)
+						).filter((id): id is string => id !== null);
+
+			if (deletedProjectIds.length === 0) {
+				toast.error("Failed to delete projects", {
+					description: "Cloud delete failed. Please try again.",
+				});
+				return;
+			}
+
 			await Promise.all(
-				uniqueIds.map((id) =>
+				deletedProjectIds.map((id) =>
 					Promise.all([
 						storageService.deleteProjectMedia({ projectId: id }),
 						storageService.deleteProject({ id }),
@@ -316,10 +341,13 @@ export class ProjectManager {
 				),
 			);
 
-			const idSet = new Set(uniqueIds);
+			const idSet = new Set(deletedProjectIds);
 			this.savedProjects = this.savedProjects.filter(
 				(project) => !idSet.has(project.id),
 			);
+			deletedProjectIds.forEach((id) => {
+				this.remoteVersionByProjectId.delete(id);
+			});
 
 			const shouldClearActive =
 				this.active && idSet.has(this.active.metadata.id);
@@ -331,8 +359,18 @@ export class ProjectManager {
 			}
 
 			this.notify();
+
+			if (deletedProjectIds.length < uniqueIds.length) {
+				toast.error("Some projects were not deleted", {
+					description:
+						"Cloud sync failed for some selected projects. Please try again.",
+				});
+			}
 		} catch (error) {
 			console.error("Failed to delete projects:", error);
+			toast.error("Failed to delete projects", {
+				description: error instanceof Error ? error.message : "Please try again",
+			});
 		}
 	}
 

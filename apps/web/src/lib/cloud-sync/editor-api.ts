@@ -133,7 +133,7 @@ const requestWithAuthRetry = async <T>({
 	body,
 }: {
 	path: string;
-	method: "GET" | "PUT" | "POST";
+	method: "GET" | "PUT" | "POST" | "DELETE";
 	token: string;
 	body?: unknown;
 }): Promise<T> => {
@@ -276,6 +276,18 @@ export const editorCloudApi = {
 			method: "PUT",
 			token,
 			body: payload,
+		}),
+	deleteProject: ({
+		projectId,
+		token,
+	}: {
+		projectId: string;
+		token: string;
+	}) =>
+		requestWithAuthRetry<void>({
+			path: `/editor/projects/${projectId}`,
+			method: "DELETE",
+			token,
 		}),
 	createFileUpload: ({
 		token,
