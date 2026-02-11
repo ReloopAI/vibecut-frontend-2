@@ -44,6 +44,17 @@ export class BackendAuthError extends Error {
 	}
 }
 
+const isWrappedErrorPayload = (
+	payload: unknown,
+): payload is { status: "error"; message?: string; statusCode?: number } => {
+	if (!payload || typeof payload !== "object") {
+		return false;
+	}
+
+	const candidate = payload as { status?: unknown };
+	return candidate.status === "error";
+};
+
 const unwrapSuccessPayload = <T,>(payload: TAuthSuccessPayload<T>): T => {
 	if (payload && typeof payload === "object" && "data" in payload) {
 		return payload.data;
@@ -100,6 +111,15 @@ async function request<T>({
 		payload = null;
 	}
 
+	if (isWrappedErrorPayload(payload)) {
+		const { message, statusCode } = extractError({
+			payload,
+			defaultMessage: "Request failed",
+			defaultStatusCode: response.status,
+		});
+		throw new BackendAuthError({ message, statusCode });
+	}
+
 	if (!response.ok) {
 		const { message, statusCode } = extractError({
 			payload,
@@ -148,8 +168,8 @@ export const backendAuthApi = {
 		}),
 	refresh: () =>
 		request<{ token: string; user: TBackendUser }>({
-			path: "/auth/refresh",
-			method: "GET",
+			path: "/auth/user/refresh",
+			method: "POST",
 		}),
 	logout: () =>
 		request<{ message?: string }>({

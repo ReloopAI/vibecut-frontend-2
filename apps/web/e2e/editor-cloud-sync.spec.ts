@@ -57,7 +57,7 @@ async function mockAuthAndCloudEditorApis({
 	page: Page;
 	withPutRoute?: boolean;
 }) {
-	await page.route("**/api/auth/refresh", async (route: Route) => {
+	await page.route("**/api/auth/user/refresh", async (route: Route) => {
 		await route.fulfill({
 			status: 200,
 			contentType: "application/json",

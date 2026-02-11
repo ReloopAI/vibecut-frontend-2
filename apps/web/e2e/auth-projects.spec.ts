@@ -17,7 +17,7 @@ test("login loads backend projects list on /projects", async ({ context, page })
 		},
 	]);
 
-	await page.route("**/api/auth/refresh", async (route) => {
+	await page.route("**/api/auth/user/refresh", async (route) => {
 		await route.fulfill({
 			status: 401,
 			contentType: "application/json",
