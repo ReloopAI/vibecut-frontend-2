@@ -334,3 +334,9 @@ Follow `package.json` scripts if different.
 - Choose the simplest interpretation.
 - Write tests that document the behavior.
 - Keep changes minimal and reversible.
+
+---
+
+## 13) Commit message
+
+- Follow commit message convention standard

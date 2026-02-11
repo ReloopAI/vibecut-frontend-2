@@ -20,10 +20,14 @@ Provide reliable sync of project state and media assets across devices/accounts.
 
 ## Technical Plan
 1. Backend API
-- `GET /api/projects`
-- `GET /api/projects/:id`
-- `PUT /api/projects/:id` (optimistic concurrency)
-- `POST /api/projects/:id/media/presign`
+- Editor state endpoints (timeline, config, and project snapshot data):
+  - `GET /api/editor/projects`
+  - `GET /api/editor/projects/:id`
+  - `PUT /api/editor/projects/:id` (optimistic concurrency)
+- File asset endpoints (reuse existing file service):
+  - Base path: `/api/files`
+  - Use existing endpoints for upload/list/download/metadata (`/api/files`, `/api/files/:id`, `/api/files/:id/download`, etc.)
+  - Keep media upload/download concerns in file service; editor project payload stores file references (`fileId`/`key`) instead of raw binaries.
 
 2. Client Sync Service
 - Hook into existing autosave flow after local save success.

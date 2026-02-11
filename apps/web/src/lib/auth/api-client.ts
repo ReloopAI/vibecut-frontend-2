@@ -1,3 +1,5 @@
+import { getBackendApiBaseUrl } from "@/lib/backend-api";
+
 export type TBackendAuthError = {
 	status?: string;
 	message?: string;
@@ -42,14 +44,6 @@ export class BackendAuthError extends Error {
 	}
 }
 
-const getAuthApiBaseUrl = () => {
-	const configuredBase = process.env.NEXT_PUBLIC_AUTH_API_BASE_URL;
-	return (configuredBase && configuredBase.length > 0 ? configuredBase : "/api").replace(
-		/\/$/,
-		"",
-	);
-};
-
 const unwrapSuccessPayload = <T,>(payload: TAuthSuccessPayload<T>): T => {
 	if (payload && typeof payload === "object" && "data" in payload) {
 		return payload.data;
@@ -88,7 +82,7 @@ async function request<T>({
 	body?: unknown;
 	token?: string | null;
 }): Promise<T> {
-	const url = `${getAuthApiBaseUrl()}${path}`;
+	const url = `${getBackendApiBaseUrl()}${path}`;
 	const response = await fetch(url, {
 		method,
 		credentials: "include",

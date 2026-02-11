@@ -12,7 +12,6 @@ import { Timeline } from "@/components/editor/timeline";
 import { PreviewPanel } from "@/components/editor/panels/preview";
 import { EditorHeader } from "@/components/editor/editor-header";
 import { EditorProvider } from "@/components/providers/editor-provider";
-import { Onboarding } from "@/components/editor/onboarding";
 import { MigrationDialog } from "@/components/editor/dialogs/migration-dialog";
 import { usePanelStore } from "@/stores/panel-store";
 
@@ -27,7 +26,6 @@ export default function Editor() {
 				<div className="min-h-0 min-w-0 flex-1">
 					<EditorLayout />
 				</div>
-				<Onboarding />
 				<MigrationDialog />
 			</div>
 		</EditorProvider>

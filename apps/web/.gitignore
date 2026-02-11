@@ -8,3 +8,5 @@
 .next/
 coverage/
 storybook-static/
+playwright-report/
+test-results/

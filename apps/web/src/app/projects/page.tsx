@@ -50,6 +50,10 @@ import { useAuthStore } from "@/stores/auth-store";
 import { backendAuthApi } from "@/lib/auth/api-client";
 import { authSession } from "@/lib/auth/session";
 import {
+	getSelectedWorkspaceId,
+	setSelectedWorkspaceId,
+} from "@/lib/backend-api";
+import {
 	DropdownMenu,
 	DropdownMenuCheckboxItem,
 	DropdownMenuContent,
@@ -77,12 +81,17 @@ const formatProjectDuration = ({
 export default function ProjectsPage() {
 	const { searchQuery, sortKey, sortOrder, viewMode } = useProjectsStore();
 	const editor = useEditor();
+	const authStatus = useAuthStore((state) => state.status);
 
 	useEffect(() => {
+		if (authStatus === "authenticated") {
+			editor.project.loadAllProjects();
+			return;
+		}
 		if (!editor.project.getIsInitialized()) {
 			editor.project.loadAllProjects();
 		}
-	}, [editor.project]);
+	}, [authStatus, editor.project]);
 
 	const sortOption: TProjectSortOption = `${sortKey}-${sortOrder}`;
 	const projectsToDisplay = editor.project.getFilteredAndSortedProjects({
@@ -146,6 +155,9 @@ function ProjectsHeader() {
 			.getWorkspaces({ token })
 			.then((workspaces) => {
 				if (workspaces.length > 0) {
+					if (!getSelectedWorkspaceId()) {
+						setSelectedWorkspaceId({ workspaceId: workspaces[0].id });
+					}
 					setCurrentWorkspaceName(workspaces[0].name);
 				} else {
 					setCurrentWorkspaceName("No workspace");

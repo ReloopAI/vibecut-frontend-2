@@ -27,12 +27,37 @@ import {
 	type MigrationProgress,
 } from "@/services/storage/migrations";
 import { DEFAULT_TIMELINE_VIEW_STATE } from "@/constants/timeline-constants";
+import { authSession } from "@/lib/auth/session";
+import {
+	EditorSyncError,
+	editorCloudApi,
+	EditorVersionConflictError,
+} from "@/lib/cloud-sync/editor-api";
+import {
+	buildEditorProjectState,
+	buildLocalProjectFromCloudState,
+	extractAssetFileIds,
+} from "@/lib/cloud-sync/editor-mapper";
 
 export interface MigrationState {
 	isMigrating: boolean;
 	fromVersion: number | null;
 	toVersion: number | null;
 	projectName: string | null;
+}
+
+export type CloudSyncStatus =
+	| "idle"
+	| "disabled"
+	| "syncing"
+	| "synced"
+	| "error"
+	| "conflict";
+
+export interface CloudSyncState {
+	status: CloudSyncStatus;
+	message: string | null;
+	updatedAt: Date | null;
 }
 
 export class ProjectManager {
@@ -43,6 +68,12 @@ export class ProjectManager {
 	private invalidProjectIds = new Set<string>();
 	private storageMigrationPromise: Promise<void> | null = null;
 	private listeners = new Set<() => void>();
+	private remoteVersionByProjectId = new Map<string, number>();
+	private cloudSyncState: CloudSyncState = {
+		status: "idle",
+		message: null,
+		updatedAt: null,
+	};
 	private migrationState: MigrationState = {
 		isMigrating: false,
 		fromVersion: null,
@@ -106,6 +137,7 @@ export class ProjectManager {
 
 		try {
 			await storageService.saveProject({ project: newProject });
+			this.remoteVersionByProjectId.set(newProject.metadata.id, 0);
 			this.updateMetadata(newProject);
 
 			return newProject.metadata.id;
@@ -127,7 +159,38 @@ export class ProjectManager {
 		this.editor.scenes.clearScenes();
 
 		try {
-			const result = await storageService.loadProject({ id });
+			let result = await storageService.loadProject({ id });
+
+			if (!result) {
+				const token = authSession.getToken();
+				if (token) {
+					try {
+						const remoteProject = await editorCloudApi.getProject({
+							projectId: id,
+							token,
+						});
+						const hydratedProject = buildLocalProjectFromCloudState({
+							projectId: remoteProject.id,
+							version: remoteProject.version,
+							state: remoteProject.state,
+							updatedAt: remoteProject.updatedAt,
+							createdAt: remoteProject.createdAt,
+						});
+						await storageService.saveProject({ project: hydratedProject });
+						result = { project: hydratedProject };
+						this.remoteVersionByProjectId.set(id, remoteProject.version);
+					} catch (cloudError) {
+						if (
+							cloudError instanceof EditorSyncError &&
+							cloudError.statusCode === 404
+						) {
+							throw new Error(`Project with id ${id} not found`);
+						}
+						throw cloudError;
+					}
+				}
+			}
+
 			if (!result) {
 				throw new Error(`Project with id ${id} not found`);
 			}
@@ -145,6 +208,7 @@ export class ProjectManager {
 			}
 
 			await this.editor.media.loadProjectMedia({ projectId: id });
+			void this.initializeRemoteVersionFromCloud({ projectId: id });
 
 			if (!project.metadata.thumbnail) {
 				const didUpdateThumbnail = await this.updateThumbnailFromTimeline();
@@ -180,6 +244,7 @@ export class ProjectManager {
 			await storageService.saveProject({ project: updatedProject });
 			this.active = updatedProject;
 			this.updateMetadata(updatedProject);
+			void this.syncProjectToCloud({ project: updatedProject });
 		} catch (error) {
 			console.error("Failed to save project:", error);
 		}
@@ -197,11 +262,31 @@ export class ProjectManager {
 
 		await this.ensureStorageMigrations();
 		try {
-			const metadata = await storageService.loadAllProjectsMetadata();
-			this.savedProjects = metadata;
+			const token = authSession.getToken();
+			if (token) {
+				const remoteProjects = await editorCloudApi.listProjects({ token });
+				this.savedProjects = remoteProjects.items.map((project) => ({
+					id: project.id,
+					name: project.name,
+					duration: 0,
+					createdAt: new Date(project.createdAt),
+					updatedAt: new Date(project.updatedAt),
+				}));
+			} else {
+				const metadata = await storageService.loadAllProjectsMetadata();
+				this.savedProjects = metadata;
+			}
 			this.notify();
 		} catch (error) {
 			console.error("Failed to load projects:", error);
+			// Fallback to local metadata when cloud list fails.
+			try {
+				const metadata = await storageService.loadAllProjectsMetadata();
+				this.savedProjects = metadata;
+				this.notify();
+			} catch (fallbackError) {
+				console.error("Failed to load local projects fallback:", fallbackError);
+			}
 		} finally {
 			this.isLoading = false;
 			this.isInitialized = true;
@@ -555,6 +640,10 @@ export class ProjectManager {
 		return this.migrationState;
 	}
 
+	getCloudSyncState(): CloudSyncState {
+		return this.cloudSyncState;
+	}
+
 	setActiveProject({ project }: { project: TProject }): void {
 		this.active = project;
 		this.notify();
@@ -622,5 +711,93 @@ export class ProjectManager {
 
 	private notify(): void {
 		this.listeners.forEach((fn) => fn());
+	}
+
+	private setCloudSyncState({
+		status,
+		message = null,
+	}: {
+		status: CloudSyncStatus;
+		message?: string | null;
+	}): void {
+		this.cloudSyncState = {
+			status,
+			message,
+			updatedAt: new Date(),
+		};
+		this.notify();
+	}
+
+	private async syncProjectToCloud({ project }: { project: TProject }): Promise<void> {
+		const token = authSession.getToken();
+		if (!token) {
+			this.setCloudSyncState({
+				status: "disabled",
+				message: "Login required for cloud sync",
+			});
+			return;
+		}
+
+		this.setCloudSyncState({ status: "syncing", message: null });
+
+		const projectId = project.metadata.id;
+		const baseVersion = this.remoteVersionByProjectId.get(projectId) ?? 0;
+
+		try {
+			const response = await editorCloudApi.putProject({
+				projectId,
+				token,
+				payload: {
+					name: project.metadata.name,
+					baseVersion,
+					state: buildEditorProjectState({ project }),
+					assetFileIds: extractAssetFileIds({ project }),
+					clientRequestId: `${projectId}:${project.metadata.updatedAt.toISOString()}`,
+				},
+			});
+
+			this.remoteVersionByProjectId.set(projectId, response.version);
+			this.setCloudSyncState({ status: "synced", message: null });
+		} catch (error) {
+			if (error instanceof EditorVersionConflictError) {
+				this.remoteVersionByProjectId.set(projectId, error.serverVersion);
+				this.setCloudSyncState({
+					status: "conflict",
+					message: "Cloud version conflict. Save again to overwrite with local state.",
+				});
+				return;
+			}
+
+			if (error instanceof EditorSyncError) {
+				this.setCloudSyncState({
+					status: "error",
+					message: error.message,
+				});
+				return;
+			}
+
+			this.setCloudSyncState({
+				status: "error",
+				message: "Cloud sync failed",
+			});
+		}
+	}
+
+	private async initializeRemoteVersionFromCloud({
+		projectId,
+	}: {
+		projectId: string;
+	}): Promise<void> {
+		const token = authSession.getToken();
+		if (!token) return;
+
+		try {
+			const response = await editorCloudApi.getProject({ projectId, token });
+			this.remoteVersionByProjectId.set(projectId, response.version);
+		} catch (error) {
+			if (error instanceof EditorSyncError && error.statusCode === 404) {
+				this.remoteVersionByProjectId.set(projectId, 0);
+			}
+		}
 	}
 }

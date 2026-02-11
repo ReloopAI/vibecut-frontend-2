@@ -30,16 +30,64 @@ import { HugeiconsIcon } from "@hugeicons/react";
 import { ShortcutsDialog } from "./dialogs/shortcuts-dialog";
 
 export function EditorHeader() {
+	const editor = useEditor();
+	const cloudSync = editor.project.getCloudSyncState();
+
 	return (
 		<header className="bg-background flex h-[3.2rem] items-center justify-between px-3 pt-0.5">
 			<div className="flex items-center gap-2">
 				<ProjectDropdown />
 			</div>
 			<nav className="flex items-center gap-2">
+				<CloudSyncBadge
+					status={cloudSync.status}
+					message={cloudSync.message}
+				/>
 				<ExportButton />
 				<ThemeToggle />
 			</nav>
 		</header>
+	);
+}
+
+function CloudSyncBadge({
+	status,
+	message,
+}: {
+	status:
+		| "idle"
+		| "disabled"
+		| "syncing"
+		| "synced"
+		| "error"
+		| "conflict";
+	message: string | null;
+}) {
+	const labelByStatus: Record<typeof status, string> = {
+		idle: "Cloud idle",
+		disabled: "Cloud off",
+		syncing: "Syncing...",
+		synced: "Cloud synced",
+		error: "Sync error",
+		conflict: "Sync conflict",
+	};
+
+	const classNameByStatus: Record<typeof status, string> = {
+		idle: "text-muted-foreground",
+		disabled: "text-muted-foreground",
+		syncing: "text-foreground",
+		synced: "text-constructive",
+		error: "text-destructive",
+		conflict: "text-amber-500",
+	};
+
+	return (
+		<div
+			className={`hidden md:block text-xs ${classNameByStatus[status]}`}
+			title={message ?? undefined}
+		>
+			{labelByStatus[status]}
+		</div>
 	);
 }
 

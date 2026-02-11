@@ -6,9 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { backendAuthApi, type TWorkspace } from "@/lib/auth/api-client";
 import { authSession } from "@/lib/auth/session";
+import { getSelectedWorkspaceId, setSelectedWorkspaceId } from "@/lib/backend-api";
+import { toast } from "sonner";
 
 function WorkspacesContent() {
 	const [workspaces, setWorkspaces] = useState<TWorkspace[]>([]);
+	const [selectedWorkspaceId, setSelectedWorkspaceIdState] = useState<string | null>(
+		null,
+	);
 	const [isLoading, setIsLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +29,13 @@ function WorkspacesContent() {
 			.getWorkspaces({ token })
 			.then((data) => {
 				setWorkspaces(data);
+				const current = getSelectedWorkspaceId();
+				if (current) {
+					setSelectedWorkspaceIdState(current);
+				} else if (data.length > 0) {
+					setSelectedWorkspaceId({ workspaceId: data[0].id });
+					setSelectedWorkspaceIdState(data[0].id);
+				}
 			})
 			.catch((requestError) => {
 				setError(
@@ -51,9 +63,31 @@ function WorkspacesContent() {
 				<div className="text-muted-foreground">No workspaces available.</div>
 			) : (
 				workspaces.map((workspace) => (
-					<Card key={workspace.id}>
+					<Card
+						key={workspace.id}
+						className={
+							selectedWorkspaceId === workspace.id ? "border-primary" : undefined
+						}
+					>
 						<CardHeader>
-							<CardTitle className="text-base">{workspace.name}</CardTitle>
+							<div className="flex items-center justify-between gap-3">
+								<CardTitle className="text-base">{workspace.name}</CardTitle>
+								<Button
+									variant={
+										selectedWorkspaceId === workspace.id
+											? "secondary"
+											: "outline"
+									}
+									size="sm"
+									onClick={() => {
+										setSelectedWorkspaceId({ workspaceId: workspace.id });
+										setSelectedWorkspaceIdState(workspace.id);
+										toast.success("Workspace selected");
+									}}
+								>
+									{selectedWorkspaceId === workspace.id ? "Selected" : "Use"}
+								</Button>
+							</div>
 						</CardHeader>
 						<CardContent className="text-sm text-muted-foreground">
 							<div>ID: {workspace.id}</div>
